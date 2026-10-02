@@ -4,6 +4,66 @@ import pytest
 from wiki_retriever.prepare import extract, split
 
 
+@pytest.mark.parametrize('extension', ['yaml', 'yml', 'json', 'jsonl'])
+@pytest.mark.parametrize('command', ['serve', 'index'])
+def test_cli_database_config(tmp_path, monkeypatch, extension, command):
+    import sys
+    import yaml
+    import uvicorn
+    from wiki_retriever import cli, service, index
+
+    db = tmp_path / 'wiki.lancedb'
+    db.mkdir()
+    (db / 'wiki-en.wiki-retriever.json').write_text(json.dumps({'model': 'recorded-model'}))
+    docs = tmp_path / 'docs.json'
+    docs.write_text('{}')
+    config = tmp_path / f'wiki.{extension}'
+    values = {'db_uri': 'wiki.lancedb', 'collection_name': 'wiki-en',
+              'doc_store_path': 'docs.json', 'backend': 'lancedb'}
+    config.write_text(yaml.safe_dump(values) if extension in ('yaml', 'yml') else json.dumps(values) + '\n')
+    captured = {}
+    def capture(**kwargs):
+        captured.update(kwargs)
+        return {}
+    monkeypatch.setattr(service, 'create_app', capture)
+    monkeypatch.setattr(index, 'build_index', capture)
+    monkeypatch.setattr(uvicorn, 'run', lambda *a, **kw: None)
+    argv = ['wiki-retriever', command, '--db', str(config)]
+    if command == 'index':
+        argv += ['--input', 'articles.jsonl']
+    monkeypatch.setattr(sys, 'argv', argv)
+    cli.main()
+    assert captured['db'] == str(db)
+    assert captured['table'] == 'wiki-en'
+    if command == 'serve':
+        assert captured['model'] == 'recorded-model'
+        assert captured['doc_store_path'] == str(docs)
+    monkeypatch.setattr(sys, 'argv', argv + ['--table', 'override'])
+    cli.main()
+    assert captured['table'] == 'override'
+
+
+@pytest.mark.parametrize('command', ['serve', 'index'])
+@pytest.mark.parametrize('use_config', [False, True])
+def test_cli_requires_table(tmp_path, monkeypatch, capsys, command, use_config):
+    import sys
+    from wiki_retriever.cli import main
+    db = tmp_path / 'wiki.lancedb'
+    db.mkdir()
+    if use_config:
+        config = tmp_path / 'wiki.json'
+        config.write_text(json.dumps({'db_uri': str(db)}))
+        db = config
+    argv = ['wiki-retriever', command, '--db', str(db)]
+    if command == 'index':
+        argv += ['--input', 'articles.jsonl']
+    monkeypatch.setattr(sys, 'argv', argv)
+    with pytest.raises(SystemExit) as error:
+        main()
+    assert error.value.code == 2
+    assert '--table is required' in capsys.readouterr().err
+
+
 def test_list_tables_cli(tmp_path, monkeypatch, capsys):
     import sys
     import lancedb

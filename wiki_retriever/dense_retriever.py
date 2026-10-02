@@ -135,7 +135,7 @@ class DenseRetriever():
                 dd = DenseRetriever._read_config(db_uri)
                 db_uri = dd['db_uri']
                 doc_store_path = dd.get('doc_store_path', doc_store_path)
-                collection_name = dd.get('collection_name', db_uri)
+                collection_name = dd.get('collection_name', collection_name)
                 backend = dd.get('backend', None)
                 # Check to see if the doc_store_path and db_uri are relative paths and adjust with the directory
                 # of the file db_uri:

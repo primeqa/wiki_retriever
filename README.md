@@ -58,6 +58,24 @@ database produces no output; a missing directory produces an error.
 
 ## Start a server and search from an RL worker
 
+`--db` also accepts a `.yaml`, `.yml`, `.json`, or `.jsonl` configuration file.
+For example, save the following as `wiki.yaml` beside your `data/` directory:
+
+```yaml
+db_uri: data/wiki.lancedb
+collection_name: wiki-en
+backend: lancedb
+```
+
+Then run `wiki-retriever serve --db wiki.yaml --device cuda`. For `serve` and
+`index`, `--table` can be omitted when the config supplies `collection_name`;
+an explicit `--table` overrides that value. Directory paths still require
+`--table`. Relative `db_uri` and optional `doc_store_path` values are resolved
+relative to the config file, using `DenseRetriever`'s config reader. JSONL configs
+use their first line. `list-tables` and `serve-grpc` also accept these configs.
+The server reads embedding model metadata from the resolved database and table;
+use the existing CLI flags for model, endpoint, device, and server options.
+
 ```bash
 wiki-retriever serve --db data/wiki.lancedb --table wiki-en --device cuda \
   --host 0.0.0.0 --port 8000

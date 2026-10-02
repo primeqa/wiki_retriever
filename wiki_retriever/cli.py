@@ -26,7 +26,7 @@ def main():
     p = commands.add_parser("index", help="Stream articles into a new LanceDB table")
     p.add_argument("--input", dest="inputs", required=True)
     p.add_argument("--db", required=True)
-    p.add_argument("--table", required=True)
+    p.add_argument("--table", help="Table name; defaults to collection_name in a --db config")
     p.add_argument("--model", default=DEFAULT_MODEL)
     p.add_argument("--window", type=int, default=1024)
     p.add_argument("--overlap", type=int, default=100)
@@ -42,12 +42,29 @@ def main():
         p.add_argument("--host", default="127.0.0.1")
         p.add_argument("--port", type=int, default=8000 if name == "serve" else 8766)
         if name == "serve":
-            p.add_argument("--table", required=True)
+            p.add_argument("--table", help="Table name; defaults to collection_name in a --db config")
             p.add_argument("--model", default=None)
             p.add_argument("--endpoint", help="OpenAI-compatible embedding endpoint without /v1; uses RITS_API_KEY")
             p.add_argument("--device", default="cpu")
     args = vars(parser.parse_args())
     command = args.pop("command")
+    if "db" in args and Path(args["db"]).suffix.lower() in (".yaml", ".yml", ".json", ".jsonl"):
+        from .dense_retriever import DenseRetriever
+        try:
+            table, db, doc_store_path, backend = DenseRetriever.read_db_config(
+                args["db"], args.get("table")
+            )
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            parser.error(f"Invalid database config: {error}")
+        if backend not in (None, "lancedb"):
+            parser.error("wiki-retriever supports only the lancedb backend")
+        args["db"] = db
+        if "table" in args:
+            args["table"] = args["table"] or table
+        if command == "serve":
+            args["doc_store_path"] = doc_store_path
+    if command in ("index", "serve") and not args["table"]:
+        parser.error("--table is required unless --db is a config containing collection_name")
     if command in ("download", "extract", "split"):
         from . import prepare
         result = getattr(prepare, command)(**args)
