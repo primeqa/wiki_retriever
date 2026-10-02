@@ -1,9 +1,10 @@
-# wiki_retriever
+# wiki-retriever
 
 An independently installable Python package for Wikipedia preparation and search
 during RL sessions. LanceDB stores passage vectors; an HTTP server owns one
 embedding model and accepts text queries. The existing vector gRPC protocol and
-interactive RITS client are also included. No DocUVerse installation is required.
+interactive search
+client are also included. No [DocUVerse](https://github.com/primeqa/docuverse) installation is required.
 
 ## Install
 
@@ -95,7 +96,8 @@ configured table and model. Full-document searches and `--top_k` above 100 use
 the gRPC/local path because the HTTP API supports passages with up to 100 results.
 
 The server computes the embeddings and selects its configured table. HTTP mode
-needs no local index, embedding config, or RITS credentials. Use `--timeout 120`
+needs no local index, embedding config, or embeddings-endpoint
+API key. Use `--timeout 120`
 to adjust the request timeout; type `exit` to quit. HTTP results contain passages.
 Existing ANN indexes built with dot distance must be rebuilt with `metric="cosine"`
 to accelerate cosine searches; new `index --ann-partitions` builds use cosine.
@@ -136,7 +138,8 @@ so use the intended private training network.
 
 Use `DenseLanceDB`, the LanceDB subclass of `DenseRetriever`, to search an
 existing index directly from a Python script. It computes query embeddings
-through a RITS service. Set `RITS_API_KEY` and `RITS_ENDPOINT` in your environment;
+through an OpenAI-compatible embeddings endpoint. Set `RITS_API_KEY` (the
+API key for that endpoint) and `RITS_ENDPOINT` in your environment;
 the endpoint is the service base URL without `/v1`. Use the same embedding model
 that built the index (the example below uses the indexing default).
 
@@ -178,11 +181,10 @@ docker run --rm -p 8000:8000 -v "$PWD/data:/data" wiki-retriever \
 
 Mount a Hugging Face cache when running without model-download access.
 
-To use a RITS embedding service instead of a local model, set `RITS_API_KEY` and
+To use an OpenAI-compatible embeddings endpoint instead of a local model, set
+`RITS_API_KEY` (the API key for that endpoint) and
 pass `--endpoint URL` without `/v1` and the same `--model` used during ingestion.
 For an existing index without metadata, explicitly specify its embedding model.
-The legacy retriever also supports optional full-document SQLite/JSON/pickle
-stores; only load trusted pickle files.
 
 Vector-only gRPC serving (embedding computation belongs to the caller):
 
@@ -192,7 +194,7 @@ wiki-retriever serve-grpc --db data/wiki.lancedb --host 0.0.0.0 --port 8766
 
 Use `wiki_retriever.milvus_grpc_client.MilvusGRPCClient` to connect. The retained
 Milvus service names describe the wire protocol; the included backend is
-LanceDB. Interactive RITS search is available through `wiki-search --backend
+LanceDB. Interactive search through an embeddings endpoint is available through `wiki-search --backend
 lancedb --db_uri data/wiki.lancedb --collection_name wiki-en --dont_use_api`.
 The model config is bundled, and `--embedding_config` overrides it.
 
