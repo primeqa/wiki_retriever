@@ -4,6 +4,32 @@ import pytest
 from wiki_retriever.prepare import extract, split
 
 
+def test_list_tables_cli(tmp_path, monkeypatch, capsys):
+    import sys
+    import lancedb
+    from wiki_retriever.cli import main
+
+    db_path = tmp_path / 'wiki.lancedb'
+    db = lancedb.connect(str(db_path))
+    monkeypatch.setattr(sys, 'argv', ['wiki-retriever', 'list-tables', '--db', str(db_path)])
+    main()
+    assert capsys.readouterr().out == ''
+
+    names = [f'table_{i:03d}' for i in range(101)]
+    for name in names:
+        db.create_table(name, [{'id': 1}])
+    main()
+    assert capsys.readouterr().out.splitlines() == names
+
+    missing = tmp_path / 'missing'
+    monkeypatch.setattr(sys, 'argv', ['wiki-retriever', 'list-tables', '--db', str(missing)])
+    with pytest.raises(SystemExit) as error:
+        main()
+    assert error.value.code == 2
+    assert 'LanceDB directory does not exist' in capsys.readouterr().err
+    assert not missing.exists()
+
+
 def test_extract_and_shard(tmp_path):
     source = tmp_path / 'wiki.xml.bz2'
     xml = '''<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/">

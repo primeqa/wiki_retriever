@@ -34,6 +34,8 @@ def main():
     p.add_argument("--device")
     p.add_argument("--max-documents", type=int)
     p.add_argument("--ann-partitions", type=int, help="Build an IVF_FLAT dot-distance index after ingestion")
+    p = commands.add_parser("list-tables", help="List tables in an existing LanceDB directory")
+    p.add_argument("--db", required=True)
     for name in ("serve", "serve-grpc"):
         p = commands.add_parser(name)
         p.add_argument("--db", required=True)
@@ -54,6 +56,26 @@ def main():
     elif command == "index":
         from .index import build_index
         print(json.dumps(build_index(**args)))
+    elif command == "list-tables":
+        import lancedb
+        db_path = Path(args["db"]).expanduser()
+        if not db_path.is_dir():
+            parser.error(f"LanceDB directory does not exist: {db_path}")
+        db = lancedb.connect(str(db_path))
+        page_token = None
+        while True:
+            if hasattr(db, "list_tables"):
+                page = db.list_tables(page_token=page_token, limit=100)
+                names, next_token = page.tables, page.page_token
+            else:
+                # Compatibility with older supported LanceDB versions.
+                names = list(db.table_names(page_token=page_token, limit=100))
+                next_token = names[-1] if len(names) == 100 else None
+            for name in names:
+                print(name)
+            if not next_token:
+                break
+            page_token = next_token
     elif command == "serve":
         import uvicorn
         from .service import create_app

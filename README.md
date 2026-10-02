@@ -47,6 +47,15 @@ better). Without `--ann-partitions`, search is exhaustive. Use the optional IVF_
 index for full-dump latency; omit it for tiny smoke builds that cannot train
 256 partitions. ANN construction may need additional memory.
 
+List the tables in an existing LanceDB directory:
+
+```bash
+wiki-retriever list-tables --db data/wiki.lancedb
+```
+
+This prints one table name per line, including all pages of results. An empty
+database produces no output; a missing directory produces an error.
+
 ## Start a server and search from an RL worker
 
 ```bash
