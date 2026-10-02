@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Wikipedia dump preparation and search services for RL sessions"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["lancedb>=0.15", "pyarrow", "numpy>=1.26", "pyyaml>=6", "openai>=1", "grpcio>=1.76", "protobuf>=6.31.1,<7", "fastapi>=0.100", "uvicorn>=0.23"]
+dependencies = ["lancedb>=0.15", "pyarrow", "numpy>=1.26", "pyyaml>=6", "openai>=1", "grpcio>=1.76", "protobuf>=6.31.1,<7", "fastapi>=0.100", "uvicorn>=0.23", "requests"]
 
 [project.optional-dependencies]
 prepare = ["mwparserfromhell>=0.6"]
