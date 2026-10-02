@@ -19,7 +19,7 @@ class LanceDBClientAdapter:
     proto and servicer code used for Milvus.
     """
 
-    def __init__(self, uri: str, metric: str = "dot"):
+    def __init__(self, uri: str, metric: str = "cosine"):
         """
         Initialize the LanceDB client adapter.
 

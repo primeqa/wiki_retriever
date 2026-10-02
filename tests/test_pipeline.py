@@ -4,6 +4,77 @@ import pytest
 from wiki_retriever.prepare import extract, split
 
 
+def test_interactive_http_search(monkeypatch, capsys):
+    import sys
+    import requests
+    from fastapi.testclient import TestClient
+    from wiki_retriever.service import create_app
+    from wiki_retriever import interactive_search
+
+    class Retriever:
+        class client:
+            @staticmethod
+            def close():
+                pass
+        def search(self, query, top_k):
+            assert query == 'Einstein' and top_k == 3
+            return [{'id': '1-0-10', 'title': 'Albert Einstein', 'text': 'Physicist', 'score': 0.0}]
+
+    with TestClient(create_app('unused', 'wiki', 'test', retriever=Retriever())) as http:
+        calls = []
+        def post(session, url, **kwargs):
+            calls.append((url, kwargs))
+            return http.post('/search', json=kwargs['json'])
+        closed = []
+        monkeypatch.setattr(requests.Session, 'post', post)
+        monkeypatch.setattr(requests.Session, 'close', lambda self: closed.append(True))
+        monkeypatch.setattr(interactive_search, '_import_backend', lambda *a: pytest.fail('Local backend loaded'))
+        monkeypatch.setattr(sys, 'argv', ['wiki-search', '--server-url', 'http://host:8000/',
+                                         '--top_k', '3', '--timeout', '12', '--embedding_config', '/missing'])
+        queries = iter(['Einstein', 'exit'])
+        monkeypatch.setattr('builtins.input', lambda prompt: next(queries))
+        interactive_search.main()
+        assert calls == [('http://host:8000/search', {'json': {'query': 'Einstein', 'top_k': 3}, 'timeout': 12})]
+        assert closed == [True]
+        assert 'Albert Einstein' in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('failure', ['http', 'timeout'])
+def test_http_client_errors(monkeypatch, failure):
+    import requests
+    from wiki_retriever.interactive_search import HTTPSearchClient
+    error = requests.HTTPError('server error') if failure == 'http' else requests.Timeout('timed out')
+    def post(*args, **kwargs):
+        if failure == 'timeout':
+            raise error
+        response = requests.Response()
+        response.status_code = 503
+        return response
+    monkeypatch.setattr(requests.Session, 'post', post)
+    client = HTTPSearchClient('http://host:8000')
+    try:
+        with pytest.raises(type(error)):
+            client.search('test', 5)
+    finally:
+        client.close()
+
+
+def test_cosine_search_ranking(tmp_path):
+    from wiki_retriever.lancedb_client_adapter import LanceDBClientAdapter
+    client = LanceDBClientAdapter(str(tmp_path / 'cosine.lancedb'))
+    try:
+        client.db.create_table('wiki', [
+            {'id': 'aligned', 'text': 'Best direction', 'vector': [1., 0.]},
+            {'id': 'large', 'text': 'Larger norm', 'vector': [100., 10.]},
+        ])
+        results = client.search('wiki', [[1., 0.]], limit=2)[0]
+        assert [result['id'] for result in results] == ['aligned', 'large']
+        assert results[0]['distance'] == pytest.approx(0.)
+        assert results[1]['distance'] == pytest.approx(1 - 100 / (10100 ** 0.5), abs=1e-6)
+    finally:
+        client.close()
+
+
 @pytest.mark.parametrize('direct', [True, False])
 def test_interactive_search_help(direct, tmp_path):
     import subprocess
@@ -198,10 +269,15 @@ def test_streaming_index_and_model_metadata(tmp_path, monkeypatch):
             assert len(texts) <= 2
             return np.array([[1., 0.] for text in texts], dtype=np.float32)
     monkeypatch.setitem(sys.modules, 'sentence_transformers', SimpleNamespace(SentenceTransformer=lambda *a, **kw: Encoder()))
+    index_options = []
+    monkeypatch.setattr(lancedb.table.LanceTable, 'create_index',
+                        lambda self, **kwargs: index_options.append(kwargs))
     source = tmp_path / 'articles.jsonl'
     source.write_text(json.dumps({'id': 1, 'title': 'Article', 'text': 'a b c d e f g', 'url': 'url'}) + '\n')
     db = str(tmp_path / 'wiki.lancedb')
-    assert build_index(str(source), db, 'wiki-en', model='test', window=4, overlap=1, batch_size=2) == {'documents': 1, 'passages': 2}
+    assert build_index(str(source), db, 'wiki-en', model='test', window=4, overlap=1, batch_size=2,
+                       ann_partitions=1) == {'documents': 1, 'passages': 2}
+    assert index_options == [{'metric': 'cosine', 'index_type': 'IVF_FLAT', 'num_partitions': 1}]
     table = lancedb.connect(db).open_table('wiki-en')
     assert table.count_rows() == 2
     assert {r['id'] for r in table.to_arrow().to_pylist()} == {'1-0-4', '1-3-7'}

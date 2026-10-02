@@ -33,7 +33,7 @@ def main():
     p.add_argument("--batch-size", type=int, default=128)
     p.add_argument("--device")
     p.add_argument("--max-documents", type=int)
-    p.add_argument("--ann-partitions", type=int, help="Build an IVF_FLAT dot-distance index after ingestion")
+    p.add_argument("--ann-partitions", type=int, help="Build an IVF_FLAT cosine-distance index after ingestion")
     p = commands.add_parser("list-tables", help="List tables in an existing LanceDB directory")
     p.add_argument("--db", required=True)
     for name in ("serve", "serve-grpc"):

@@ -42,8 +42,9 @@ tables are refused to prevent accidental duplication or replacement; a failed
 build may leave a partial table, so retry with a fresh name. Indexing uses token
 windows and local passage embeddings from
 `ibm-granite/granite-embedding-english-r2` by default. Model identity is recorded
-beside the table and reused by `serve`. Searches use dot distance (lower is
-better). Without `--ann-partitions`, search is exhaustive. Use the optional IVF_FLAT
+beside the table and reused by `serve`. Search scores are cosine dissimilarities
+(`1 - cosine_similarity`; lower is better). Without `--ann-partitions`, search is
+exhaustive. Use the optional IVF_FLAT
 index for full-dump latency; omit it for tiny smoke builds that cannot train
 256 partitions. ANN construction may need additional memory.
 
@@ -76,6 +77,20 @@ use their first line. `list-tables` and `serve-grpc` also accept these configs.
 The server reads embedding model metadata from the resolved database and table;
 use the existing CLI flags for model, endpoint, device, and server options.
 
+Search interactively from another machine using the HTTP server:
+
+```bash
+wiki-search --server-url http://retrieval-host:8000 --top_k 5
+# Or run the script directly:
+python wiki_retriever/interactive_search.py --server-url http://retrieval-host:8000
+```
+
+The server computes the embeddings and selects its configured table. HTTP mode
+needs no local index, embedding config, or RITS credentials. Use `--timeout 120`
+to adjust the request timeout; type `exit` to quit. HTTP results contain passages.
+Existing ANN indexes built with dot distance must be rebuilt with `metric="cosine"`
+to accelerate cosine searches; new `index --ann-partitions` builds use cosine.
+
 ```bash
 wiki-retriever serve --db data/wiki.lancedb --table wiki-en --device cuda \
   --host 0.0.0.0 --port 8000
@@ -96,7 +111,7 @@ response.raise_for_status()
 passages = response.json()["results"]
 ```
 
-Results include passage `id`, `title`, `text`, `url`, and `score` (dot distance).
+Results include passage `id`, `title`, `text`, `url`, and `score` (cosine dissimilarity).
 `/docs` provides the HTTP schema. Requests share one model; search runs serially
 within each server process. Run one process per assigned GPU. The default bind
 address is localhost; binding to all interfaces exposes an unauthenticated API,
@@ -133,7 +148,7 @@ finally:
 
 `use_api=False` opens the local LanceDB directory directly, so this script needs
 access to the index files and does not require the HTTP or gRPC search server.
-Reuse the retriever for subsequent queries. Scores are dot distances, with lower
+Reuse the retriever for subsequent queries. Scores are cosine dissimilarities, with lower
 values indicating better matches. `DenseRetriever` itself is a base class; use
 the backend subclass to initialize its database client.
 

@@ -7,6 +7,7 @@ where you type queries and see the top-k results.  Type "exit" to quit.
 
 Usage:
     wiki-search --backend lancedb --db_uri /path/to/wiki.lancedb --collection_name wiki-en --dont_use_api
+    wiki-search --server-url http://retrieval-host:8000
 """
 
 import argparse
@@ -16,6 +17,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 import yaml
 
 # Direct file execution needs the package root for relative imports.
@@ -39,10 +41,10 @@ def parse_args():
         "--backend", type=str, default=None, choices=list(BACKENDS),
         help="Vector database backend (default: auto-detect from --db_uri)",
     )
-    parser.add_argument(
-        "--db_uri", type=str, required=True,
-        help="Database URI: remote URL or local path",
-    )
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--db_uri", type=str, help="Local database directory or config file")
+    source.add_argument("--server-url", help="HTTP search server base URL, e.g. http://localhost:8000")
+    parser.add_argument("--timeout", type=float, default=60, help="HTTP request timeout in seconds (default: 60)")
     parser.add_argument(
         "--collection_name", type=str,
         default="nq_train_short_milvus_dense_granite125m_512_100_20250623",
@@ -82,6 +84,21 @@ def parse_args():
 
     args = parser.parse_args()
 
+    if args.top_k < 1 or args.timeout <= 0:
+        parser.error("--top_k and --timeout must be positive")
+    if args.use_glow and not shutil.which("glow"):
+        print("Warning: 'glow' not found in PATH — falling back to plain output")
+        args.use_glow = False
+    if args.server_url:
+        url = urlparse(args.server_url)
+        if url.scheme not in ("http", "https") or not url.netloc:
+            parser.error("--server-url must be an HTTP or HTTPS base URL")
+        if args.return_docs or args.doc_store_path:
+            parser.error("HTTP search returns passages; document stores require --db_uri")
+        if args.top_k > 100:
+            parser.error("HTTP search supports --top_k up to 100")
+        return args
+
     # If db_uri is a config file, read backend (and other fields) from it
     collection_name, db_uri, doc_store_path, config_backend = \
         DenseRetriever.read_db_config(args.db_uri, args.collection_name, args.doc_store_path)
@@ -99,10 +116,6 @@ def parse_args():
             args.backend = infer_backend(args.db_uri)
             print(f"  Auto-detected backend: {args.backend}")
 
-    if args.use_glow and not shutil.which("glow"):
-        print("Warning: 'glow' not found in PATH — falling back to plain output")
-        args.use_glow = False
-
     if args.return_docs and args.doc_store_path is None:
         ext = os.path.splitext(args.db_uri)[1].lower()
         if ext not in ('.yaml', '.yml', '.json', '.jsonl'):
@@ -112,6 +125,26 @@ def parse_args():
             )
 
     return args
+
+
+class HTTPSearchClient:
+    """Text-query client for the wiki-retriever HTTP server."""
+
+    def __init__(self, server_url, timeout=60):
+        import requests
+        self.url = server_url.rstrip("/") + "/search"
+        self.timeout = timeout
+        self.session = requests.Session()
+
+    def search(self, query, top_k, return_docs=False):
+        response = self.session.post(
+            self.url, json={"query": query, "top_k": top_k}, timeout=self.timeout,
+        )
+        response.raise_for_status()
+        return response.json()["results"]
+
+    def close(self):
+        self.session.close()
 
 
 def render_glow(text):
@@ -163,115 +196,127 @@ def main():
             return text
         return f"\033[{code}m{text}\033[0m"
 
-    # Load embedding config
-    tm.mark()
-    print(f"Loading embedding config from {args.embedding_config}...")
-    with open(args.embedding_config, "r", encoding="utf-8") as f:
-        config = yaml.safe_load(f)
-    tm.add_timing("load_config")
+    if args.server_url:
+        client = HTTPSearchClient(args.server_url, args.timeout)
+        print(f"HTTP search server: {args.server_url}")
+    else:
+        # Load embedding config
+        tm.mark()
+        print(f"Loading embedding config from {args.embedding_config}...")
+        with open(args.embedding_config, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        tm.add_timing("load_config")
 
-    # Initialize retriever
-    RetrieverClass = _import_backend(args.backend)
+        # Initialize retriever
+        RetrieverClass = _import_backend(args.backend)
 
-    tm.mark()
-    client = RetrieverClass(
-        model_name=config['model']['engine'],
-        endpoint=config['model']['args']['endpoint'],
-        db_uri=args.db_uri,
-        collection_name=args.collection_name,
-        use_api=args.use_api,
-        doc_store_path=args.doc_store_path,
-    )
-    tm.add_timing("init_retriever")
-    print(f"\nInitializing {args.backend} retriever...")
-    print(f"  DB URI:     {client.db_uri}")
-    print(f"  Collection: {client.collection_name}")
+        tm.mark()
+        client = RetrieverClass(
+            model_name=config['model']['engine'],
+            endpoint=config['model']['args']['endpoint'],
+            db_uri=args.db_uri,
+            collection_name=args.collection_name,
+            use_api=args.use_api,
+            doc_store_path=args.doc_store_path,
+        )
+        tm.add_timing("init_retriever")
+        print(f"\nInitializing {args.backend} retriever...")
+        print(f"  DB URI:     {client.db_uri}")
+        print(f"  Collection: {client.collection_name}")
 
 
-    # Verify collection exists
-    try:
-        if not client.client.has_collection(client.collection_name):
-            available = client.client.list_collections()
-            print(f"\nError: collection '{client.collection_name}' not found.")
-            if available:
-                print(f"  Available collections:")
-                for name in available:
-                    print(f"    - {name}")
+        # Verify collection exists
+        try:
+            if not client.client.has_collection(client.collection_name):
+                available = client.client.list_collections()
+                print(f"\nError: collection '{client.collection_name}' not found.")
+                if available:
+                    print(f"  Available collections:")
+                    for name in available:
+                        print(f"    - {name}")
+                else:
+                    print("  (no collections found in database)")
+                return
+        except Exception:
+            pass  # some backends may not support has_collection; let search fail later
+
+        if args.return_docs:
+            if client.doc_store is None:
+                print("Warning: doc store failed to load — 'doc' field will be empty")
             else:
-                print("  (no collections found in database)")
-            return
-    except Exception:
-        pass  # some backends may not support has_collection; let search fail later
-
-    if args.return_docs:
-        if client.doc_store is None:
-            print("Warning: doc store failed to load — 'doc' field will be empty")
-        else:
-            print(f"  Doc store:  {len(client.doc_store):,} documents loaded")
+                print(f"  Doc store:  {len(client.doc_store):,} documents loaded")
 
     print(f"\n  Init time: {tm.time_since_beginning()}")
 
-    # Interactive loop
-    print(f"\nReady.  top_k={args.top_k}, truncate={args.truncate}")
-    print('Type a query and press Enter.  Type "exit" to quit.\n')
+    try:
+        # Interactive loop
+        print(f"\nReady.  top_k={args.top_k}, truncate={args.truncate}")
+        print('Type a query and press Enter.  Type "exit" to quit.\n')
 
-    num_queries = 0
+        num_queries = 0
 
-    while True:
-        try:
-            query = input("query> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print("\nBye.")
-            break
+        while True:
+            try:
+                query = input("query> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nBye.")
+                break
 
-        if not query:
-            continue
-        if query.lower() == "exit":
-            print("Bye.")
-            break
+            if not query:
+                continue
+            if query.lower() == "exit":
+                print("Bye.")
+                break
 
-        tm.mark()
-        try:
-            results = client.search(query, args.top_k, return_docs=args.return_docs)
-        except Exception as e:
-            print(f"  Error: {e}\n")
-            continue
-        query_ms = tm.mark_and_return_milliseconds()
-        num_queries += 1
-        tm.add_timing("queries", query_ms)
+            tm.mark()
+            try:
+                results = client.search(query, args.top_k, return_docs=args.return_docs)
+            except Exception as e:
+                print(f"  Error: {e}\n")
+                continue
+            query_ms = tm.mark_and_return_milliseconds()
+            num_queries += 1
+            tm.add_timing("queries", query_ms)
 
-        if not results:
-            print(f"  (no results)  [{query_ms} ms]\n")
-            continue
+            if not results:
+                print(f"  (no results)  [{query_ms} ms]\n")
+                continue
 
-        output_lines = []
-        for i, doc in enumerate(results, 1):
-            score = doc.get('score', doc.get('distance', '?'))
-            passage_id = doc.get('id', '?')
-            doc_id = DenseRetriever._get_orig_docid(passage_id) if passage_id != '?' else '?'
-            title = doc.get('title', '')
-            text = doc.get('doc') if args.return_docs else doc.get('text', '')
+            output_lines = []
+            for i, doc in enumerate(results, 1):
+                score = doc.get('score', doc.get('distance', '?'))
+                passage_id = doc.get('id', '?')
+                doc_id = DenseRetriever._get_orig_docid(passage_id) if passage_id != '?' else '?'
+                title = doc.get('title', '')
+                text = doc.get('doc') if args.return_docs else doc.get('text', '')
 
-            label = "doc" if args.return_docs else "text"
-            output_lines.append(color(f" [{i}] score={score:.4f}  doc_id={doc_id}  passage_id={passage_id}",
-                                      'yellow' if not args.use_glow else 'bold', ))
-            output_lines.append(color(f"   Title: {truncate(title, 80)}", 'cyan'))
-            output_lines.append(f"         {label}:\n {truncate(text, args.truncate)}\n")
+                label = "doc" if args.return_docs else "text"
+                output_lines.append(color(f" [{i}] score={score:.4f}  doc_id={doc_id}  passage_id={passage_id}",
+                                          'yellow' if not args.use_glow else 'bold', ))
+                output_lines.append(color(f"   Title: {truncate(title, 80)}", 'cyan'))
+                output_lines.append(f"         {label}:\n {truncate(text, args.truncate)}\n")
 
-        output_lines.append(f"  ({query_ms} ms)\n")
+            output_lines.append(f"  ({query_ms} ms)\n")
 
-        output = "\n".join(output_lines)
-        if args.use_glow:
-            print(render_glow(output))
+            output = "\n".join(output_lines)
+            if args.use_glow:
+                print(render_glow(output))
+            else:
+                # Apply yellow to text lines in plain mode
+                print(output)
+
+        # Final timing summary
+        if num_queries > 0:
+            print()
+            tm.display_timing(tm.milliseconds_since_beginning(),
+                              keys={"queries": num_queries})
+
+    finally:
+        if args.server_url:
+            client.close()
         else:
-            # Apply yellow to text lines in plain mode
-            print(output)
-
-    # Final timing summary
-    if num_queries > 0:
-        print()
-        tm.display_timing(tm.milliseconds_since_beginning(),
-                          keys={"queries": num_queries})
+            client.client.close()
+            client.openai.close()
 
 
 if __name__ == "__main__":

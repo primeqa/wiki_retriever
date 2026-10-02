@@ -70,7 +70,7 @@ def build_index(inputs, db, table, model=DEFAULT_MODEL, window=1024, overlap=100
     if ann_partitions is not None:
         if ann_partitions < 1:
             raise ValueError("ann_partitions must be positive")
-        target.create_index(metric="dot", index_type="IVF_FLAT", num_partitions=ann_partitions)
+        target.create_index(metric="cosine", index_type="IVF_FLAT", num_partitions=ann_partitions)
     # Record embedding identity beside the index for serving with the same model.
     from pathlib import Path
     (Path(db) / f"{table}.wiki-retriever.json").write_text(json.dumps({"model": model, "window": window, "overlap": overlap}))
