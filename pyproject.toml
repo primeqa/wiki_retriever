@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wiki_retriever"
+version = "0.1.0"
+description = "Wikipedia dump preparation and search services for RL sessions"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["lancedb>=0.15", "pyarrow", "numpy>=1.26", "pyyaml>=6", "openai>=1", "grpcio>=1.76", "protobuf>=6.31.1,<7", "fastapi>=0.100", "uvicorn>=0.23"]
+
+[project.optional-dependencies]
+prepare = ["mwparserfromhell>=0.6"]
+local = ["sentence-transformers>=6"]
+dev = ["pytest>=7", "httpx"]
+
+[project.scripts]
+wiki-retriever = "wiki_retriever.cli:main"
+wiki-search = "wiki_retriever.interactive_search:main"
+
+[tool.setuptools.packages.find]
+include = ["wiki_retriever*"]
+
+[tool.setuptools.package-data]
+wiki_retriever = ["configs/*.yaml"]

@@ -1,0 +1,13 @@
+model:
+  engine: ibm-granite/granite-embedding-english-r2
+  tokenizer: ibm-granite/granite-embedding-english-r2
+  wrapper: ChatTemplateWrapper
+  name: IBM Granite Embedding R2 English
+  owner: sjrosenthal@us.ibm.com
+  release_date: 2025-05-23
+  service: 'rits'
+  args:
+    # max_input_tokens: 32768
+    # max_new_tokens: 512
+    classname: SentenceTransformer
+    endpoint: https://inference-3scale-apicast-production.apps.rits.fmaas.res.ibm.com/granite-english-r2
