@@ -8,11 +8,11 @@ interactive RITS client are also included. No DocUVerse installation is required
 ## Install
 
 ```bash
-python -m pip install -e './wiki_retriever[prepare,local]'
+pip install "wiki-retriever[prepare,local]"
 ```
 
-For another machine, copy `wiki_retriever/` and run `pip install '.[prepare,local]'`
-inside it. Choose a CUDA-compatible PyTorch installation when using a GPU.
+To install from a source checkout instead, run `pip install -e ".[prepare,local]"`
+in the repository root. Choose a CUDA-compatible PyTorch installation when using a GPU.
 `prepare` installs the wiki parser; `local` installs SentenceTransformers.
 Downloads require `wget`. Full dumps and vector indexes require substantial disk
 space. Extraction and ingestion stream bounded batches, although each individual
@@ -81,7 +81,7 @@ Search interactively from another machine using the HTTP server:
 
 ```bash
 wiki-search --server-url http://retrieval-host:8000 --top_k 5
-# Or run the script directly:
+# Or, from a source checkout, run the script directly:
 python wiki_retriever/interactive_search.py --server-url http://retrieval-host:8000
 ```
 
@@ -167,11 +167,11 @@ Reuse the retriever for subsequent queries. Scores are cosine dissimilarities, w
 values indicating better matches. `DenseRetriever` itself is a base class; use
 the backend subclass to initialize its database client.
 
-A container recipe is included for CPU deployment (GPU deployment needs a
+From a source checkout, a container recipe is included for CPU deployment (GPU deployment needs a
 CUDA-compatible base/runtime):
 
 ```bash
-docker build -t wiki-retriever wiki_retriever
+docker build -t wiki-retriever .
 docker run --rm -p 8000:8000 -v "$PWD/data:/data" wiki-retriever \
   --db /data/wiki.lancedb --table wiki-en
 ```
@@ -196,24 +196,9 @@ LanceDB. Interactive RITS search is available through `wiki-search --backend
 lancedb --db_uri data/wiki.lancedb --collection_name wiki-en --dont_use_api`.
 The model config is bundled, and `--embedding_config` overrides it.
 
-## Euler and the original DocUVerse workflow
-
-The original preparation scripts were copied from
-`euler:/local2/raduf/wikipedia/` into `tools/original/`. The package commands adapt
-that workflow with bounded queues and configurable language URLs. Existing
-corpus files on Euler can be reused without downloading/extracting again:
-
-```bash
-scp euler:/local2/raduf/wikipedia/wikipedia.en.jsonl.bz2 data/
-```
-
-Use your configured `euler` SSH alias. The original DocUVerse ingestion workflow
-and historical paths remain documented in [`../README_wiki.md`](../README_wiki.md).
-Import modules under `wiki_retriever` or use the installed commands.
-
 ## Tests
 
 ```bash
-pip install -e './wiki_retriever[prepare,dev]'
-pytest wiki_retriever/tests
+pip install -e ".[prepare,dev]"
+pytest tests
 ```

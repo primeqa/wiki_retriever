@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,15 @@ version = "0.1.0"
 description = "Wikipedia dump preparation and search services for RL sessions"
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [{ name = "Radu Florian" }]
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = ["lancedb>=0.15", "pyarrow", "numpy>=1.26", "pyyaml>=6", "openai>=1", "grpcio>=1.76", "protobuf>=6.31.1,<7", "fastapi>=0.100", "uvicorn>=0.23", "requests"]
+
+[project.urls]
+Homepage = "https://github.com/primeqa/wiki_retriever"
+Repository = "https://github.com/primeqa/wiki_retriever"
+Issues = "https://github.com/primeqa/wiki_retriever/issues"
 
 [project.optional-dependencies]
 prepare = ["mwparserfromhell>=0.6"]
