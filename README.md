@@ -8,10 +8,10 @@ interactive RITS client are also included. No DocUVerse installation is required
 ## Install
 
 ```bash
-python -m pip install -e './for_pavan[prepare,local]'
+python -m pip install -e './wiki_retriever[prepare,local]'
 ```
 
-For another machine, copy `for_pavan/` and run `pip install '.[prepare,local]'`
+For another machine, copy `wiki_retriever/` and run `pip install '.[prepare,local]'`
 inside it. Choose a CUDA-compatible PyTorch installation when using a GPU.
 `prepare` installs the wiki parser; `local` installs SentenceTransformers.
 Downloads require `wget`. Full dumps and vector indexes require substantial disk
@@ -75,11 +75,46 @@ within each server process. Run one process per assigned GPU. The default bind
 address is localhost; binding to all interfaces exposes an unauthenticated API,
 so use the intended private training network.
 
+### Search from Python with DenseRetriever
+
+Use `DenseLanceDB`, the LanceDB subclass of `DenseRetriever`, to search an
+existing index directly from a Python script. It computes query embeddings
+through a RITS service. Set `RITS_API_KEY` and `RITS_ENDPOINT` in your environment;
+the endpoint is the service base URL without `/v1`. Use the same embedding model
+that built the index (the example below uses the indexing default).
+
+```python
+import os
+from wiki_retriever.dense_lancedb import DenseLanceDB
+
+retriever = DenseLanceDB(
+    model_name="ibm-granite/granite-embedding-english-r2",
+    endpoint=os.environ["RITS_ENDPOINT"],
+    db_uri="data/wiki.lancedb",
+    collection_name="wiki-en",
+    use_api=False,
+)
+try:
+    results = retriever.search("Who developed general relativity?", top_k=5)
+    for passage in results:
+        print(passage["title"], passage["score"], passage["url"])
+        print(passage["text"])
+finally:
+    retriever.client.close()
+    retriever.openai.close()
+```
+
+`use_api=False` opens the local LanceDB directory directly, so this script needs
+access to the index files and does not require the HTTP or gRPC search server.
+Reuse the retriever for subsequent queries. Scores are dot distances, with lower
+values indicating better matches. `DenseRetriever` itself is a base class; use
+the backend subclass to initialize its database client.
+
 A container recipe is included for CPU deployment (GPU deployment needs a
 CUDA-compatible base/runtime):
 
 ```bash
-docker build -t wiki-retriever for_pavan
+docker build -t wiki-retriever wiki_retriever
 docker run --rm -p 8000:8000 -v "$PWD/data:/data" wiki-retriever \
   --db /data/wiki.lancedb --table wiki-en
 ```
@@ -117,12 +152,11 @@ scp euler:/local2/raduf/wikipedia/wikipedia.en.jsonl.bz2 data/
 
 Use your configured `euler` SSH alias. The original DocUVerse ingestion workflow
 and historical paths remain documented in [`../README_wiki.md`](../README_wiki.md).
-The new package replaces loose module imports from `for_pavan`; import modules
-under `wiki_retriever` or use the installed commands.
+Import modules under `wiki_retriever` or use the installed commands.
 
 ## Tests
 
 ```bash
-pip install -e './for_pavan[prepare,dev]'
-pytest for_pavan/tests
+pip install -e './wiki_retriever[prepare,dev]'
+pytest wiki_retriever/tests
 ```
