@@ -466,7 +466,7 @@ class DenseRetrieverLocal(DenseRetriever):
 
     def compute_embedding(self, text) -> \
             Union[Union[List[float], List[int]], List[Union[List[float], List[int]]]]:
-        if type(text) != list:
+        if not isinstance(text, list):
             text = [text]
 
         if self.use_query_prompt:

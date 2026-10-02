@@ -24,3 +24,6 @@ include = ["wiki_retriever*"]
 
 [tool.setuptools.package-data]
 wiki_retriever = ["configs/*.yaml"]
+
+[tool.ruff]
+extend-exclude = ["*_pb2.py", "*_pb2_grpc.py"]

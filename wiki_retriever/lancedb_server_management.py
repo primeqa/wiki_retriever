@@ -167,7 +167,7 @@ class LanceDBServerInstance:
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except:
+        except Exception:
             return "localhost"
 
     def _initialize_client(self):
@@ -233,7 +233,7 @@ class LanceDBServerInstance:
             result = client.health_check()
             client.close()
             return result
-        except:
+        except Exception:
             return False
 
     def stop_server(self):
@@ -243,7 +243,7 @@ class LanceDBServerInstance:
         if self.socket_path and os.path.exists(self.socket_path):
             try:
                 os.remove(self.socket_path)
-            except:
+            except Exception:
                 pass
         self.logger.info("Server stop requested and unregistered")
 
@@ -519,7 +519,7 @@ def list_running_servers(registry_dir: str = None) -> List[Dict[str, Any]]:
                     servers.append(server_data)
                 else:
                     registry._cleanup_registry()
-            except:
+            except Exception:
                 continue
 
     return servers

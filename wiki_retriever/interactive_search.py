@@ -245,7 +245,7 @@ def main():
                 available = client.client.list_collections()
                 print(f"\nError: collection '{client.collection_name}' not found.")
                 if available:
-                    print(f"  Available collections:")
+                    print("  Available collections:")
                     for name in available:
                         print(f"    - {name}")
                 else:

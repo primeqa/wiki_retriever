@@ -10,7 +10,6 @@ Author: Radu Florian
 raduf@us.ibm.com )'''
 from datetime import datetime
 import sys
-from typing import Dict
 
 msec = 1
 sec = 1000

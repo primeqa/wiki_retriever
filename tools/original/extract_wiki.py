@@ -147,10 +147,10 @@ def main():
     print(f"Workers: {args.workers}", file=sys.stderr)
     print(file=sys.stderr)
 
-    if args.output.endswith(".bz2"):
-        open_func = lambda p: bz2.open(p, "wt", encoding="utf-8")
-    else:
-        open_func = lambda p: open(p, "w", encoding="utf-8")
+    def open_func(p):
+        if args.output.endswith(".bz2"):
+            return bz2.open(p, "wt", encoding="utf-8")
+        return open(p, "w", encoding="utf-8")
 
     written = 0
     with mp.Pool(args.workers) as pool, open_func(args.output) as out:

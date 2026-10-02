@@ -232,7 +232,6 @@ def test_http_search(tmp_path):
 def test_grpc_roundtrip(tmp_path):
     from wiki_retriever.lancedb_client_adapter import LanceDBClientAdapter
     from wiki_retriever.milvus_grpc_server import serve_grpc
-    from wiki_retriever.milvus_grpc_client import MilvusGRPCClient
     import grpc
     from wiki_retriever import milvus_service_pb2 as pb
     from wiki_retriever import milvus_service_pb2_grpc as rpc

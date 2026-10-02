@@ -105,7 +105,7 @@ class ServerRegistry:
             mac = hex(uuid.getnode())
             hostname = socket.gethostname()
             return hashlib.md5(f"{hostname}:{mac}".encode()).hexdigest()
-        except:
+        except Exception:
             # Last resort: just use hostname
             return socket.gethostname()
 
@@ -199,7 +199,7 @@ class ServerRegistry:
                     s.connect(server_info.socket_path)
                     s.close()
                     return True
-                except:
+                except Exception:
                     return False
             else:
                 # TCP: use gRPC health check (works for both local and remote)
@@ -235,7 +235,7 @@ class ServerRegistry:
                 os.remove(self.registry_file)
             if os.path.exists(self.lock_file):
                 os.remove(self.lock_file)
-        except:
+        except Exception:
             pass
     
     def unregister_server(self):
@@ -298,7 +298,7 @@ class MilvusAPIClient:
                     # ANSI color codes: green for collection names
                     colored_collections = ', '.join([f"\033[92m{col}\033[0m" for col in available_collections]) if available_collections else 'none'
                     self.logger.error(f"Collection '{collection_name}' not found. Available collections: {colored_collections}")
-                except:
+                except Exception:
                     pass  # If we can't list collections, just re-raise original error
             raise
 

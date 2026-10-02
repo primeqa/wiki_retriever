@@ -4,7 +4,6 @@ Vector database backend registry and helpers.
 Extracted from benchmark_db.py so callers don't pull in the benchmark harness.
 """
 
-import os
 
 
 # ── Backend registry ────────────────────────────────────────────────
