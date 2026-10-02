@@ -13,9 +13,16 @@ import socket
 import random
 import fcntl
 import logging
+import sys
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 import numpy
+
+# Direct file execution needs the package root for relative imports.
+if __name__ == "__main__" and not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "wiki_retriever"
 
 from .server_common import ServerRegistry, ServerInfo, MilvusAPIClient, Utils
 
@@ -520,6 +527,13 @@ def list_running_servers(registry_dir: str = None) -> List[Dict[str, Any]]:
 
 # Example usage and testing
 if __name__ == "__main__":
+    import argparse
+
+    argparse.ArgumentParser(
+        description="Run the LanceDB server discovery example using ./test_db/lancedb. "
+                    "For a standalone gRPC server, use wiki-retriever serve-grpc."
+    ).parse_args()
+
     print("Creating first instance (server mode)...")
     server1 = create_lancedb_server("./test_db/lancedb", host="0.0.0.0", port=8766, use_api=True)
 
