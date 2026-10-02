@@ -45,6 +45,7 @@ def parse_args():
     source.add_argument("--db_uri", type=str, help="Local database directory or config file")
     source.add_argument("--server-url", help="HTTP search server base URL, e.g. http://localhost:8000")
     parser.add_argument("--timeout", type=float, default=60, help="HTTP request timeout in seconds (default: 60)")
+    parser.add_argument("--registry-dir", help="HTTP server registry directory; config inputs default to .wiki_retriever_servers beside the resolved database")
     parser.add_argument(
         "--collection_name", type=str,
         default="nq_train_short_milvus_dense_granite125m_512_100_20250623",
@@ -74,8 +75,8 @@ def parse_args():
              "Required when --return_docs is set.",
     )
     parser.add_argument(
-        "--dont_use_api", action="store_false", dest="use_api", default=True,
-        help="Use direct file access instead of gRPC server",
+        "--dont_use_api", action="store_false", dest="use_api", default=None,
+        help="Force local file access instead of discovering an existing server",
     )
     parser.add_argument(
         "--use_glow", action="store_true",
@@ -100,9 +101,13 @@ def parse_args():
         return args
 
     # If db_uri is a config file, read backend (and other fields) from it
+    config_input = Path(args.db_uri).suffix.lower() in ('.yaml', '.yml', '.json', '.jsonl')
     collection_name, db_uri, doc_store_path, config_backend = \
         DenseRetriever.read_db_config(args.db_uri, args.collection_name, args.doc_store_path)
     args.db_uri = db_uri
+    args.db_uri = str(Path(args.db_uri).expanduser().resolve())
+    if config_input and args.registry_dir is None:
+        args.registry_dir = str(Path(args.db_uri).parent / ".wiki_retriever_servers")
     args.collection_name = collection_name
     if doc_store_path is not None:
         args.doc_store_path = doc_store_path
@@ -123,6 +128,14 @@ def parse_args():
                 "--return_docs requires --doc_store_path (unless --db_uri "
                 "points to a .yaml/.json/.jsonl config that includes doc_store_path)"
             )
+
+    if args.use_api is not False and not args.return_docs and args.top_k <= 100:
+        from .http_server_management import HTTPServerRegistry, server_url
+        registry_dir = args.registry_dir or str(Path(args.db_uri).parent / ".wiki_retriever_servers")
+        registry = HTTPServerRegistry(args.db_uri, registry_dir)
+        info = registry.get_server_info()
+        if registry.is_server_alive(info):
+            args.server_url = server_url(info)
 
     return args
 
@@ -217,6 +230,7 @@ def main():
             db_uri=args.db_uri,
             collection_name=args.collection_name,
             use_api=args.use_api,
+            start_server=False,
             doc_store_path=args.doc_store_path,
         )
         tm.add_timing("init_retriever")

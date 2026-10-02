@@ -85,6 +85,15 @@ wiki-search --server-url http://retrieval-host:8000 --top_k 5
 python wiki_retriever/interactive_search.py --server-url http://retrieval-host:8000
 ```
 
+With `wiki-search --db_uri data/wiki.lancedb`, search discovers an existing
+registered HTTP server first, then an existing LanceDB gRPC server. If neither
+is running, it opens the database locally without starting a server. Config files
+also work; their default registry is `.wiki_retriever_servers` beside the resolved
+database directory, matching `serve`. Use `--registry-dir` to match a custom HTTP registry, or
+`--dont_use_api` to force local access. Discovered HTTP servers use their own
+configured table and model. Full-document searches and `--top_k` above 100 use
+the gRPC/local path because the HTTP API supports passages with up to 100 results.
+
 The server computes the embeddings and selects its configured table. HTTP mode
 needs no local index, embedding config, or RITS credentials. Use `--timeout 120`
 to adjust the request timeout; type `exit` to quit. HTTP results contain passages.

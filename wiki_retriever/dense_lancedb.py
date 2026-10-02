@@ -15,7 +15,8 @@ class DenseLanceDB(DenseRetriever):
     def __init__(self, model_name, endpoint, db_uri,
                  collection_name="nq_granite125m_512_100_20250530",
                  use_api: bool = True,
-                 doc_store_path: str = None):
+                 doc_store_path: str = None,
+                 start_server: bool = True):
         """
         Args:
             model_name: Embedding model identifier.
@@ -23,6 +24,8 @@ class DenseLanceDB(DenseRetriever):
             db_uri: Path to LanceDB database directory.
             collection_name: LanceDB table name.
             use_api: Use gRPC server mode.
+                None discovers an existing server, otherwise uses local access.
+            start_server: Whether API mode may start a new gRPC server.
             doc_store_path: Optional path to a serialized document store file
                 (see ``DenseRetriever``).
         """
@@ -31,6 +34,7 @@ class DenseLanceDB(DenseRetriever):
                 "db_uri is required for DenseLanceDB. "
                 "Provide a path to the LanceDB database directory."
             )
+        self._start_server = start_server
         super().__init__(model_name, endpoint, db_uri, collection_name, use_api,
                          doc_store_path=doc_store_path)
 
@@ -46,6 +50,7 @@ class DenseLanceDB(DenseRetriever):
             db_path=self.db_uri,
             socket_path=socket_path,
             use_api=self._use_api,
+            start_server=self._start_server,
             port=8766,
         )
-        self.engine_type = "api" if self._use_api else "lancedb"
+        self.engine_type = "api" if self.client.use_api else "lancedb"
