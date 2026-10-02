@@ -115,6 +115,9 @@ def test_cli_database_config(tmp_path, monkeypatch, extension, command):
     captured = {}
     def capture(**kwargs):
         captured.update(kwargs)
+        if command == 'serve':
+            from fastapi import FastAPI
+            return FastAPI()
         return {}
     monkeypatch.setattr(service, 'create_app', capture)
     monkeypatch.setattr(index, 'build_index', capture)

@@ -42,6 +42,7 @@ def main():
         p.add_argument("--host", default="127.0.0.1")
         p.add_argument("--port", type=int, default=8000 if name == "serve" else 8766)
         if name == "serve":
+            p.add_argument("--registry-dir", help="Server registry directory; defaults to .wiki_retriever_servers beside --db")
             p.add_argument("--table", help="Table name; defaults to collection_name in a --db config")
             p.add_argument("--model", default=None)
             p.add_argument("--endpoint", help="OpenAI-compatible embedding endpoint without /v1; uses RITS_API_KEY")
@@ -94,15 +95,19 @@ def main():
                 break
             page_token = next_token
     elif command == "serve":
-        import uvicorn
+        from .http_server_management import serve
         from .service import create_app
         host, port = args.pop("host"), args.pop("port")
-        metadata = Path(args["db"]) / f"{args['table']}.wiki-retriever.json"
-        recorded = json.loads(metadata.read_text())["model"] if metadata.exists() else None
-        if args["model"] and recorded and args["model"] != recorded:
-            parser.error("--model differs from the model used to build this table")
-        args["model"] = args["model"] or recorded or DEFAULT_MODEL
-        uvicorn.run(create_app(**args), host=host, port=port)
+        registry_dir = args.pop("registry_dir")
+        args["db"] = str(Path(args["db"]).expanduser().resolve())
+        def app_factory():
+            metadata = Path(args["db"]) / f"{args['table']}.wiki-retriever.json"
+            recorded = json.loads(metadata.read_text())["model"] if metadata.exists() else None
+            if args["model"] and recorded and args["model"] != recorded:
+                parser.error("--model differs from the model used to build this table")
+            args["model"] = args["model"] or recorded or DEFAULT_MODEL
+            return create_app(**args)
+        serve(args["db"], host, port, app_factory, registry_dir)
     else:
         from .lancedb_client_adapter import LanceDBClientAdapter
         from .milvus_grpc_server import serve_grpc

@@ -113,7 +113,13 @@ passages = response.json()["results"]
 
 Results include passage `id`, `title`, `text`, `url`, and `score` (cosine dissimilarity).
 `/docs` provides the HTTP schema. Requests share one model; search runs serially
-within each server process. Run one process per assigned GPU. The default bind
+within each server process. `serve` registers one HTTP server per resolved database
+directory in `.wiki_retriever_servers` beside the database (override with
+`--registry-dir`). Starting it again for that database prints the existing URL
+and exits, reusing the first server's table, model, host, and port. Concurrent
+starts wait for the first server to become ready. Stale registrations are replaced
+after the owning process exits. Use the same registry directory for all callers.
+The default bind
 address is localhost; binding to all interfaces exposes an unauthenticated API,
 so use the intended private training network.
 
