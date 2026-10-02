@@ -14,7 +14,14 @@ import os
 import readline  # noqa: F401 — enables line editing & history for input()
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 import yaml
+
+# Direct file execution needs the package root for relative imports.
+if __name__ == "__main__" and not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    __package__ = "wiki_retriever"
 
 from .backends import BACKENDS, _import_backend, infer_backend
 from .dense_retriever import DenseRetriever

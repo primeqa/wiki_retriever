@@ -4,6 +4,26 @@ import pytest
 from wiki_retriever.prepare import extract, split
 
 
+@pytest.mark.parametrize('direct', [True, False])
+def test_interactive_search_help(direct, tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    arguments = [str(root / 'wiki_retriever' / 'interactive_search.py')] if direct else [
+        '-m', 'wiki_retriever.interactive_search'
+    ]
+    result = subprocess.run(
+        [sys.executable, *arguments, '-h'],
+        cwd=tmp_path if direct else root,
+        capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert '--db_uri' in result.stdout
+    assert '--collection_name' in result.stdout
+
+
 @pytest.mark.parametrize('extension', ['yaml', 'yml', 'json', 'jsonl'])
 @pytest.mark.parametrize('command', ['serve', 'index'])
 def test_cli_database_config(tmp_path, monkeypatch, extension, command):
